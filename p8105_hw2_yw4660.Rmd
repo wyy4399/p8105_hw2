@@ -2,4 +2,99 @@
 title: "p8105_hw2_yw4660"
 output: html_document
 ---
+```{r, include=FALSE}
+library('tidyverse')
+```
+
+## Problem 1
+```{r}
+# data import
+pols <- read_csv("data/fivethirtyeight_datasets/pols-month.csv")
+
+unemployment <- read_csv("data/fivethirtyeight_datasets/unemployment.csv")
+
+# clean data in pols
+head(pols)
+pols_clean <- pols |>
+janitor::clean_names() |>
+separate(mon, into = c("year","month","day"), sep = "-", convert = TRUE) |>
+mutate(month = month.name[month], president = if_else(prez_gop == 1, "gop", "dem")) |>
+select(year, month, president, gov_gop, sen_gop, rep_gop,gov_dem, sen_dem, rep_dem) |>
+arrange(year, match(month, month.name))
+head(pols_clean)
+
+# clean data in snp
+snp  <- read_csv("data/fivethirtyeight_datasets/snp.csv")
+head(snp)
+snp_clean <- snp |>
+janitor::clean_names() |> 
+separate(date, into = c("month", "day", "year"), sep = "/") |> 
+mutate(year = as.integer(year), year = ifelse(year >= 50, 1900 + year, 2000 + year), month = month.name[as.integer(month)]) |>
+select(year, month, close) |>
+arrange(year, match(month,month.name))
+head(snp_clean)
+
+# Tidy the unemployment data
+head(unemployment)
+unemployment_tidy <- unemployment |>
+janitor::clean_names() |> 
+pivot_longer(jan:dec,names_to  = "month",values_to = "unemployment") |>
+mutate(month = factor(month, levels = tolower(month.abb), labels = month.name))|>
+arrange(year, month)
+head(unemployment_tidy)
+
+# Merge the cleaned datasets
+pols_snp <- left_join(pols_clean, snp_clean, by = c("year","month"))
+head(pols_snp)
+final_data <- left_join(pols_snp, unemployment_tidy, by = c("year","month"))
+head(final_data)
+# Show dimensions of the result
+dim(final_data)
+```
+
+## Problem 2
+```{r}
+# Path to the Excel workbook
+tw_path <- "data/trash_wheel_data.xlsx"
+
+# Function to read and clean a single sheet
+read_trash_sheet <- function(sheet_name, wheel_name) {
+  df <- read_excel(tw_path, sheet = sheet_name, skip = 1)
+  # make simple names manually
+  names(df) <- c("dumpster", "date", "weight_tons", "vol_trash", "vol_soda",
+                 "vol_glass", "vol_plastic", "vol_metal", "vol_polystyrene",
+                 "vol_mixed", "plastic_bags", "glass_bottles", "polystyrene",
+                 "aluminum_cans", "plastic_bottles", "cigarette_butts",
+                 "glass_breaks", "sports_balls", "diesel", "propane", "notes")
+  df |>
+    filter(!is.na(dumpster)) |>
+    mutate(sports_balls = as.integer(round(as.numeric(sports_balls))),
+           wheel = wheel_name)
+}
+
+# Read each sheet
+mr_df        <- read_trash_sheet("Mr. Trash Wheel",        "Mr")
+professor_df <- read_trash_sheet("Professor Trash Wheel", "Professor")
+gwynnda_df   <- read_trash_sheet("Gwynnda",             "Gwynnda")
+
+# Combine
+trash_data <- bind_rows(mr_df, professor_df, gwynnda_df)
+
+trash_data |> head()
+```
+
+```{r totals-trash-wheel, eval=FALSE}
+# Total weight for Professor Trash Wheel
+professor_weight <- trash_data |>
+  filter(wheel == "Professor") |>
+  summarise(total_weight_tons = sum(weight_tons, na.rm = TRUE))
+
+# Total cigarette butts for Gwynnda in June 2022
+cigs_gwynnda_jun2022 <- trash_data |>
+  filter(wheel == "Gwynnda",
+         format(as.Date(date), "%Y") == "2022",
+         format(as.Date(date), "%m") == "06") |>
+  summarise(total_cig_butts = sum(cigarette_butts, na.rm = TRUE))
+```
+```
 
