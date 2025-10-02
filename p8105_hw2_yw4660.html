@@ -424,7 +424,7 @@ snp  &lt;- read_csv(&quot;data/fivethirtyeight_datasets/snp.csv&quot;)</code></p
 janitor::clean_names() |&gt; 
 separate(date, into = c(&quot;month&quot;, &quot;day&quot;, &quot;year&quot;), sep = &quot;/&quot;) |&gt; 
 mutate(year = as.integer(year), year = ifelse(year &gt;= 50, 1900 + year, 2000 + year), month = month.name[as.integer(month)]) |&gt;
-select(year,month,close) |&gt;
+select(year, month, close) |&gt;
 arrange(year, match(month,month.name))
 head(snp_clean)</code></pre>
 <pre><code>## # A tibble: 6 × 3
@@ -449,13 +449,9 @@ head(unemployment)</code></pre>
 ## 6  1953   2.9   2.6   2.6   2.7   2.5   2.5   2.6   2.7   2.9   3.1   3.5   4.5</code></pre>
 <pre class="r"><code>unemployment_tidy &lt;- unemployment |&gt;
 janitor::clean_names() |&gt; 
-pivot_longer(
-    jan:dec,
-    names_to  = &quot;month&quot;,
-    values_to = &quot;unemployment&quot;) |&gt;
-  mutate(
-    month = factor(month, levels = tolower(month.abb), labels = month.name))|&gt;
-  arrange(year, month)
+pivot_longer(jan:dec,names_to  = &quot;month&quot;,values_to = &quot;unemployment&quot;) |&gt;
+mutate(month = factor(month, levels = tolower(month.abb), labels = month.name))|&gt;
+arrange(year, month)
 head(unemployment_tidy)</code></pre>
 <pre><code>## # A tibble: 6 × 3
 ##    year month    unemployment
@@ -496,6 +492,158 @@ dim(final_data)</code></pre>
 </div>
 <div id="problem-2" class="section level2">
 <h2>Problem 2</h2>
+<pre class="r"><code>mr &lt;- read_excel(&quot;data/trash_wheel_data.xlsx&quot;,
+                 sheet = &quot;Mr. Trash Wheel&quot;,
+                 skip = 1) |&gt;
+  select(-starts_with(&quot;Unnamed&quot;)) |&gt;   
+  janitor::clean_names() |&gt;            
+  filter(!is.na(dumpster)) |&gt;          
+  mutate(
+    year  = as.integer(year),
+    month = as.character(month),
+    date  = as.Date(date),
+    sports_balls = as.integer(round(sports_balls)),
+    trash_wheel  = &quot;Mr. Trash Wheel&quot;
+  )</code></pre>
+<pre><code>## New names:
+## • `` -&gt; `...15`
+## • `` -&gt; `...16`</code></pre>
+<pre class="r"><code>prof &lt;- read_excel(&quot;data/trash_wheel_data.xlsx&quot;,
+                   sheet = &quot;Professor Trash Wheel&quot;,
+                   skip = 1) |&gt;
+  select(-starts_with(&quot;Unnamed&quot;)) |&gt;
+  janitor::clean_names() |&gt;
+  filter(!is.na(dumpster)) |&gt;
+  mutate(
+    year  = as.integer(year),
+    month = as.character(month),
+    date  = as.Date(date),
+    sports_balls = NA_integer_,
+    trash_wheel  = &quot;Professor Trash Wheel&quot;
+  )
+
+gwyn &lt;- read_excel(&quot;data/trash_wheel_data.xlsx&quot;,
+                   sheet = &quot;Gwynnda Trash Wheel&quot;,
+                   skip = 1) |&gt;
+  select(-starts_with(&quot;Unnamed&quot;)) |&gt;
+  janitor::clean_names() |&gt;
+  filter(!is.na(dumpster)) |&gt;
+  mutate(
+    month = trimws(as.character(month)),
+    year  = as.integer(year),
+    date  = as.Date(date),
+    sports_balls = NA_integer_,
+    trash_wheel  = &quot;Gwynnda Trash Wheel&quot;
+  )
+
+trash_all &lt;- bind_rows(mr, prof, gwyn)
+head(trash_all)</code></pre>
+<pre><code>## # A tibble: 6 × 17
+##   dumpster month  year date       weight_tons volume_cubic_yards plastic_bottles
+##      &lt;dbl&gt; &lt;chr&gt; &lt;int&gt; &lt;date&gt;           &lt;dbl&gt;              &lt;dbl&gt;           &lt;dbl&gt;
+## 1        1 May    2014 2014-05-16        4.31                 18            1450
+## 2        2 May    2014 2014-05-16        2.74                 13            1120
+## 3        3 May    2014 2014-05-16        3.45                 15            2450
+## 4        4 May    2014 2014-05-17        3.1                  15            2380
+## 5        5 May    2014 2014-05-17        4.06                 18             980
+## 6        6 May    2014 2014-05-20        2.71                 13            1430
+## # ℹ 10 more variables: polystyrene &lt;dbl&gt;, cigarette_butts &lt;dbl&gt;,
+## #   glass_bottles &lt;dbl&gt;, plastic_bags &lt;dbl&gt;, wrappers &lt;dbl&gt;,
+## #   sports_balls &lt;int&gt;, homes_powered &lt;dbl&gt;, x15 &lt;lgl&gt;, x16 &lt;lgl&gt;,
+## #   trash_wheel &lt;chr&gt;</code></pre>
+<p>After cleaning and combining the datasets from Mr. Trash Wheel,
+Professor Trash Wheel, and Gwynnda, the resulting dataset includes 1033
+observations and 17 variables.<br />
+Key variables include the total weight of trash collected
+(<code>weight_tons</code>), the volume of trash
+(<code>volume_cubic_yards</code>), and counts of specific items such as
+plastic bottles, polystyrene, cigarette butts, and sports balls.</p>
+<p>Professor Trash Wheel collected a total of <strong>246.7
+tons</strong> of trash across the available period.<br />
+Meanwhile, Gwynnda collected <strong>1.812^{4} cigarette butts</strong>
+in June of 2022.</p>
+</div>
+<div id="problem-3" class="section level2">
+<h2>Problem 3</h2>
+<pre class="r"><code>zip_df &lt;- read_csv(&quot;data/zillow_data/Zip Codes.csv&quot;)</code></pre>
+<pre><code>## Rows: 322 Columns: 7
+## ── Column specification ────────────────────────────────────────────────────────
+## Delimiter: &quot;,&quot;
+## chr (4): County, County Code, File Date, Neighborhood
+## dbl (3): State FIPS, County FIPS, ZipCode
+## 
+## ℹ Use `spec()` to retrieve the full column specification for this data.
+## ℹ Specify the column types or set `show_col_types = FALSE` to quiet this message.</code></pre>
+<pre class="r"><code>zori_df &lt;- read_csv(&quot;data/zillow_data/Zip_zori_uc_sfrcondomfr_sm_month_NYC.csv&quot;)</code></pre>
+<pre><code>## Rows: 149 Columns: 125
+## ── Column specification ────────────────────────────────────────────────────────
+## Delimiter: &quot;,&quot;
+## chr   (6): RegionType, StateName, State, City, Metro, CountyName
+## dbl (119): RegionID, SizeRank, RegionName, 2015-01-31, 2015-02-28, 2015-03-3...
+## 
+## ℹ Use `spec()` to retrieve the full column specification for this data.
+## ℹ Specify the column types or set `show_col_types = FALSE` to quiet this message.</code></pre>
+<pre class="r"><code>zip_df &lt;- zip_df |&gt;
+distinct(ZipCode, .keep_all = TRUE)
+head(zip_df)</code></pre>
+<pre><code>## # A tibble: 6 × 7
+##   County `State FIPS` `County Code` `County FIPS` ZipCode `File Date`
+##   &lt;chr&gt;         &lt;dbl&gt; &lt;chr&gt;                 &lt;dbl&gt;   &lt;dbl&gt; &lt;chr&gt;      
+## 1 Bronx            36 005                   36005   10451 7/25/07    
+## 2 Bronx            36 005                   36005   10452 7/25/07    
+## 3 Bronx            36 005                   36005   10453 7/25/07    
+## 4 Bronx            36 005                   36005   10454 7/25/07    
+## 5 Bronx            36 005                   36005   10455 7/25/07    
+## 6 Bronx            36 005                   36005   10456 7/25/07    
+## # ℹ 1 more variable: Neighborhood &lt;chr&gt;</code></pre>
+<pre class="r"><code>## create dataset
+# Add a numeric ZipCode column to the Zillow data, matching the zip file
+zori_df &lt;- zori_df |&gt;
+  mutate(ZipCode = as.integer(RegionName))
+
+# Merge the county and neighborhood information onto the Zillow data by ZipCode
+zori_merged &lt;- zori_df |&gt;
+  left_join(
+    zip_df |&gt;
+      select(ZipCode, County, Neighborhood),
+    by = &quot;ZipCode&quot;
+  )
+
+# Identify all columns containing dates (those starting with year)
+date_columns &lt;- names(zori_merged)[grepl(&quot;^20\\d{2}-\\d{2}-\\d{2}$&quot;, names(zori_merged))]
+
+# Pivot from wide to long format:
+# Each row will represent one zip code on a specific date, with its rent value.
+zori_long &lt;- zori_merged |&gt;
+  pivot_longer(
+    cols = all_of(date_columns),
+    names_to = &quot;date&quot;,
+    values_to = &quot;rent&quot;
+  ) |&gt;
+  mutate(date = ymd(date)) |&gt;
+  arrange(ZipCode, date)
+
+# Rename columns to a more readable format for the final tidy dataset
+final_dataset &lt;- zori_long |&gt;
+  rename(
+    zip_code = ZipCode,
+    borough = County,
+    neighborhood = Neighborhood,
+    rent_price = rent
+  )
+
+head(final_dataset)</code></pre>
+<pre><code>## # A tibble: 6 × 14
+##   RegionID SizeRank RegionName RegionType StateName State City  Metro CountyName
+##      &lt;dbl&gt;    &lt;dbl&gt;      &lt;dbl&gt; &lt;chr&gt;      &lt;chr&gt;     &lt;chr&gt; &lt;chr&gt; &lt;chr&gt; &lt;chr&gt;     
+## 1    61615     4444      10001 zip        NY        NY    New … New … New York …
+## 2    61615     4444      10001 zip        NY        NY    New … New … New York …
+## 3    61615     4444      10001 zip        NY        NY    New … New … New York …
+## 4    61615     4444      10001 zip        NY        NY    New … New … New York …
+## 5    61615     4444      10001 zip        NY        NY    New … New … New York …
+## 6    61615     4444      10001 zip        NY        NY    New … New … New York …
+## # ℹ 5 more variables: zip_code &lt;dbl&gt;, borough &lt;chr&gt;, neighborhood &lt;chr&gt;,
+## #   date &lt;date&gt;, rent_price &lt;dbl&gt;</code></pre>
 </div>
 
 

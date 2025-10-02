@@ -4,6 +4,7 @@ output: html_document
 ---
 ```{r, include=FALSE}
 library('tidyverse')
+library('readxl')
 ```
 
 ## Problem 1
@@ -54,47 +55,126 @@ dim(final_data)
 
 ## Problem 2
 ```{r}
-# Path to the Excel workbook
-tw_path <- "data/trash_wheel_data.xlsx"
+mr <- read_excel("data/trash_wheel_data.xlsx",
+                 sheet = "Mr. Trash Wheel",
+                 skip = 1) |>
+  select(-starts_with("Unnamed")) |>   
+  janitor::clean_names() |>            
+  filter(!is.na(dumpster)) |>          
+  mutate(
+    year  = as.integer(year),
+    month = as.character(month),
+    date  = as.Date(date),
+    sports_balls = as.integer(round(sports_balls)),
+    trash_wheel  = "Mr. Trash Wheel"
+  )
 
-# Function to read and clean a single sheet
-read_trash_sheet <- function(sheet_name, wheel_name) {
-  df <- read_excel(tw_path, sheet = sheet_name, skip = 1)
-  # make simple names manually
-  names(df) <- c("dumpster", "date", "weight_tons", "vol_trash", "vol_soda",
-                 "vol_glass", "vol_plastic", "vol_metal", "vol_polystyrene",
-                 "vol_mixed", "plastic_bags", "glass_bottles", "polystyrene",
-                 "aluminum_cans", "plastic_bottles", "cigarette_butts",
-                 "glass_breaks", "sports_balls", "diesel", "propane", "notes")
-  df |>
-    filter(!is.na(dumpster)) |>
-    mutate(sports_balls = as.integer(round(as.numeric(sports_balls))),
-           wheel = wheel_name)
-}
+prof <- read_excel("data/trash_wheel_data.xlsx",
+                   sheet = "Professor Trash Wheel",
+                   skip = 1) |>
+  select(-starts_with("Unnamed")) |>
+  janitor::clean_names() |>
+  filter(!is.na(dumpster)) |>
+  mutate(
+    year  = as.integer(year),
+    month = as.character(month),
+    date  = as.Date(date),
+    sports_balls = NA_integer_,
+    trash_wheel  = "Professor Trash Wheel"
+  )
 
-# Read each sheet
-mr_df        <- read_trash_sheet("Mr. Trash Wheel",        "Mr")
-professor_df <- read_trash_sheet("Professor Trash Wheel", "Professor")
-gwynnda_df   <- read_trash_sheet("Gwynnda",             "Gwynnda")
+gwyn <- read_excel("data/trash_wheel_data.xlsx",
+                   sheet = "Gwynnda Trash Wheel",
+                   skip = 1) |>
+  select(-starts_with("Unnamed")) |>
+  janitor::clean_names() |>
+  filter(!is.na(dumpster)) |>
+  mutate(
+    month = trimws(as.character(month)),
+    year  = as.integer(year),
+    date  = as.Date(date),
+    sports_balls = NA_integer_,
+    trash_wheel  = "Gwynnda Trash Wheel"
+  )
 
-# Combine
-trash_data <- bind_rows(mr_df, professor_df, gwynnda_df)
-
-trash_data |> head()
+trash_all <- bind_rows(mr, prof, gwyn)
+head(trash_all)
 ```
+After cleaning and combining the datasets from Mr. Trash Wheel, Professor Trash Wheel, and Gwynnda, the resulting dataset includes `r nrow(trash_all)` observations and `r ncol(trash_all)` variables.  
+Key variables include the total weight of trash collected (`weight_tons`), the volume of trash (`volume_cubic_yards`), and counts of specific items such as plastic bottles, polystyrene, cigarette butts, and sports balls.  
 
-```{r totals-trash-wheel, eval=FALSE}
-# Total weight for Professor Trash Wheel
-professor_weight <- trash_data |>
-  filter(wheel == "Professor") |>
-  summarise(total_weight_tons = sum(weight_tons, na.rm = TRUE))
+Professor Trash Wheel collected a total of **`r round(sum(prof$weight_tons, na.rm = TRUE), 1)` tons** of trash across the available period.  
+Meanwhile, Gwynnda collected **`r sum(filter(gwyn, year == 2022, tolower(month) == "june")$cigarette_butts, na.rm = TRUE)` cigarette butts** in June of 2022.
 
-# Total cigarette butts for Gwynnda in June 2022
-cigs_gwynnda_jun2022 <- trash_data |>
-  filter(wheel == "Gwynnda",
-         format(as.Date(date), "%Y") == "2022",
-         format(as.Date(date), "%m") == "06") |>
-  summarise(total_cig_butts = sum(cigarette_butts, na.rm = TRUE))
+## Problem 3
+```{r}
+zip_df <- read_csv("data/zillow_data/Zip Codes.csv", show_col_types = FALSE) |>
+  distinct(ZipCode, .keep_all = TRUE)
+zori_df <- read_csv("data/zillow_data/Zip_zori_uc_sfrcondomfr_sm_month_NYC.csv")
+zip_df <- zip_df |>
+distinct(ZipCode, .keep_all = TRUE)
+head(zip_df)
+
+## create dataset
+# Add a numeric ZipCode column to the Zillow data, matching the zip file
+zori_df <- zori_df |>
+  mutate(ZipCode = as.integer(RegionName))
+# Find missing zip
+
+
+missing_zips_final <- setdiff(zip_df$ZipCode, final_dataset$zip_code)
+# Merge the county and neighborhood information onto the Zillow data by ZipCode
+zori_merged <- zori_df |>
+  left_join(
+    zip_df |>
+      select(ZipCode, County, Neighborhood),
+    by = "ZipCode"
+  )
+
+# Identify all columns containing dates (those starting with year)
+date_columns <- names(zori_merged)[grepl("^20\\d{2}-\\d{2}-\\d{2}$", names(zori_merged))]
+
+# Pivot from wide to long format:
+# Each row will represent one zip code on a specific date, with its rent value.
+zori_long <- zori_merged |>
+  pivot_longer(
+    cols = all_of(date_columns),
+    names_to = "date",
+    values_to = "rent"
+  ) |>
+  mutate(date = ymd(date)) |>
+  arrange(ZipCode, date)
+
+# Rename columns to a more readable format for the final tidy dataset
+final_dataset <- zori_long |>
+  rename(
+    zip_code = ZipCode,
+    borough = County,
+    neighborhood = Neighborhood,
+    rent_price = rent
+  )
+
+head(final_dataset)
+total_obs_final     <- nrow(final_dataset)
+unique_zips_final   <- n_distinct(final_dataset$zip_code)
+unique_neighs_final <- n_distinct(final_dataset$neighborhood)
+# Find rental drop during covid
+jan2020 <- "2020-01-31"
+jan2021 <- "2021-01-31"
+
+drop_table <- final_dataset |>
+  filter(date %in% as.Date(c("2020-01-31", "2021-01-31"))) |>
+  select(zip_code, borough, neighborhood, date, rent_price) |>
+  pivot_wider(names_from = date, values_from = rent_price) |>
+  mutate(
+    change_2020_to_2021 = `2021-01-31` - `2020-01-31`
+  ) |>
+  arrange(change_2020_to_2021) |>
+  slice(1:10) |>
+  select(zip_code, borough, neighborhood, change_2020_to_2021)
 ```
-```
+This tidy dataset contains `r total_obs_final` rows. It includes `r unique_zips_final` unique ZIP codes and `r unique_neighs_final` unique neighborhoods.  
 
+ZIP codes that appear in the ZIP code master list but not in the Zillow rent dataset include `r paste(head(missing_zips_final, 10), collapse = ", ")` (and many more).  Examples such as 10020 (Rockefeller Center), 11371 (LaGuardia Airport) and 10041 (55 Water Street) correspond to major office complexes or transportation hubs rather than residential areas, which is why Zillow has no rental data for them.  
+
+The table below lists the ten ZIP codes with the largest drop in rental price between January 2020 and January 2021, along with their borough and neighborhood.  Inline R code generates this table from `final_dataset`:
